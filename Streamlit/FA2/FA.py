@@ -52,7 +52,7 @@ def get_df(uploaded_file):
 def screen(np_fea,fea_list,threshold,score_dict=None):
     np_fea=np_fea[fea_list]
     cor=np_fea.iloc[:,:].corr()
-    del_set=set()
+    screen_fea=fea_list.copy()
     for a in range(len(fea_list)):
         fea_a=fea_list[a]
         col=cor[fea_a]
@@ -63,14 +63,15 @@ def screen(np_fea,fea_list,threshold,score_dict=None):
             y=abs(col[fea_b])
             if y>=threshold:
                 if score_dict==None:#直接筛选
-                    del_set.add(fea_b)
+                    if fea_b in screen_fea:
+                        screen_fea.remove(fea_b)
                 else:
                     if score_dict[fea_a]>score_dict[fea_b]:
-                        del_set.add(fea_b)
+                        if fea_b in screen_fea:
+                            screen_fea.remove(fea_b)
                     else:
-                        del_set.add(fea_a)
-
-    screen_fea=list(set(fea_list)-del_set)
+                        if fea_a in screen_fea:
+                            screen_fea.remove(fea_a)
     return screen_fea
 #---------------------------------------导航栏-----------------------------------------------------
 with st.form("my_form"):
@@ -251,16 +252,20 @@ elif choose == "重要性":
         rf_dict=grade.rf(st.session_state['np_fea'],options_fea)
         col3.write(rf_dict)
 
-        col4.markdown('###### 🫧 基于xgboost')
-        xgboost_dict=grade.xgboost(st.session_state['np_fea'],options_fea)
-        col4.write(xgboost_dict)
+        col4.markdown('###### 🌴 基于极度随机树')
+        etc_dict=grade.etc(st.session_state['np_fea'],options_fea)
+        col4.write(etc_dict)
+
+        # col4.markdown('###### 🫧 基于xgboost')
+        # xgboost_dict=grade.xgboost(st.session_state['np_fea'],options_fea)
+        # col4.write(xgboost_dict)
 
         # col4.markdown('###### 🎰 基于IV评分卡')
         # iv_dict=grade.iv(st.session_state['np_fea'],options_fea)
         # col4.write(iv_dict)
 
         col5.markdown('###### 🎯 综合排名')
-        syn=grade.syn(gap_dict,hard_dict,rf_dict,xgboost_dict)
+        syn=grade.syn(gap_dict,hard_dict,rf_dict,etc_dict)
         syn_list=syn[0]
         st.session_state['syn_list']=syn_list
         loser_list=syn[1]
@@ -272,10 +277,10 @@ elif choose == "重要性":
             st.markdown("###### 🧨 推荐特征")
             col1,col2,col3,col4,col5=st.columns([3,0.5,3,0.5,1])
             threshold = col1.slider('推荐阈值', 0, 100, 50)
-            option = col3.selectbox('推荐方式',('考虑综合排名','考虑硬算评分','考虑差值评分', '考虑随机森林评分','考虑xgboost评分','考虑IV评分'))
+            option = col3.selectbox('推荐方式',('考虑综合排名','考虑硬算评分','考虑差值评分', '考虑随机森林评分','考虑极度随机树评分'))
             screen_fea=0
             if col5.form_submit_button("🔘 推 荐"):
-                st.session_state['recommend_fea']=grade.recommend(gap_dict,hard_dict,rf_dict,xgboost_dict,syn_list,loser_list,option,threshold)
+                st.session_state['recommend_fea']=grade.recommend(gap_dict,hard_dict,rf_dict,etc_dict,syn_list,loser_list,option,threshold)
 
                 st.markdown("###### 🎉 推荐结果：")
                 st.info(st.session_state['recommend_fea'])
@@ -293,9 +298,9 @@ elif choose == "相似度":
             col1,col2,col3,col4,col5=st.columns([3,0.5,3,0.5,1])
             threshold = col1.slider('筛选阈值', 0.0, 1.0, 0.88)
             if st.session_state['syn_list'] is None:
-                option = col3.selectbox('筛选方式',('考虑差值评分','考虑硬算评分','考虑随机森林评分','考虑xgboost评分','直接筛选'))
+                option = col3.selectbox('筛选方式',('考虑差值评分','考虑硬算评分','考虑随机森林评分','考虑极度随机树评分','直接筛选'))
             else:
-                option = col3.selectbox('筛选方式',('考虑综合排名', '考虑差值评分','考虑硬算评分','考虑随机森林评分','考虑xgboost评分','直接筛选'))
+                option = col3.selectbox('筛选方式',('考虑综合排名', '考虑差值评分','考虑硬算评分','考虑随机森林评分','考虑极度随机树评分','直接筛选'))
             screen_fea=0
             if col5.form_submit_button("🔘 筛 选"):
                 if option=="考虑综合排名":
@@ -310,9 +315,12 @@ elif choose == "相似度":
                 elif option=="考虑随机森林评分":
                     score_dict=grade.rf(st.session_state['np_fea'],options_fea)
                     st.session_state['screen_fea']=screen(st.session_state['np_fea'],options_fea,threshold,score_dict)
-                elif option=="考虑xgboost评分":
-                    score_dict=grade.xgboost(st.session_state['np_fea'],options_fea)
+                elif option=="考虑极度随机树评分":
+                    score_dict=grade.etc(st.session_state['np_fea'],options_fea)
                     st.session_state['screen_fea']=screen(st.session_state['np_fea'],options_fea,threshold,score_dict)
+                # elif option=="xgboost":
+                #     score_dict=grade.xgboost(st.session_state['np_fea'],options_fea)
+                #     st.session_state['screen_fea']=screen(st.session_state['np_fea'],options_fea,threshold,score_dict)
                 # elif option=="考虑IV评分":
                 #     score_dict=grade.iv(st.session_state['np_fea'],options_fea)
                 #     st.session_state['screen_fea']=screen(st.session_state['np_fea'],options_fea,threshold,score_dict)

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import math
 from sklearn import metrics
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier,ExtraTreesClassifier
 from sklearn.linear_model import LogisticRegression
 from xgboost import XGBClassifier
 import streamlit as st
@@ -182,6 +182,23 @@ def rf(df,fea_list):
     rf_dict = dict(sorted(rf_dict.items(), key=lambda x: x[1],reverse=True))
     return rf_dict
 
+#------------------------极度随机树筛选变量------------------------------
+@st.cache
+def etc(df,fea_list):
+    df=df[fea_list+['target']]
+    x = df.drop(['target'],axis=1)
+    y = df['target']
+    etcmodel = ExtraTreesClassifier(random_state=0)
+    etcmodel = etcmodel.fit(x,y)
+
+    keys=list(x.columns)
+    values=etcmodel.feature_importances_
+    etc_dict={}
+    for i in range(len(keys)):
+        etc_dict[keys[i]]=values[i]
+
+    etc_dict = dict(sorted(etc_dict.items(), key=lambda x: x[1],reverse=True))
+    return etc_dict
 
 #------------------------xgboost筛选变量------------------------------
 @st.cache
@@ -194,12 +211,12 @@ def xgboost(df,fea_list):
 
     keys=list(x.columns)
     values=xgmodel.feature_importances_
-    xgboost_dict={}
+    xetc_dict={}
     for i in range(len(keys)):
-        xgboost_dict[keys[i]]=float(values[i])
+        xetc_dict[keys[i]]=float(values[i])
 
-    xgboost_dict = dict(sorted(xgboost_dict.items(), key=lambda x: x[1],reverse=True))
-    return xgboost_dict
+    xetc_dict = dict(sorted(xetc_dict.items(), key=lambda x: x[1],reverse=True))
+    return xetc_dict
 
 #---------------------------IV值---------------------------
 @st.cache
@@ -229,10 +246,10 @@ def iv(data, fea_list):
 
 #------------------------综合排名------------------------------
 @st.cache
-def syn(gap_dict,rf_dict,xgboost_dict,iv_dict):
+def syn(gap_dict,rf_dict,etc_dict,iv_dict):
     gap_keys=list(gap_dict.keys())
     rf_keys=list(rf_dict.keys())
-    xgboost_keys=list(xgboost_dict.keys())
+    etc_keys=list(etc_dict.keys())
     iv_keys=list(iv_dict.keys())
     syn_dict={}
     loser_list=[]
@@ -240,7 +257,7 @@ def syn(gap_dict,rf_dict,xgboost_dict,iv_dict):
         if gap_dict[fea]<55:
             loser_list.append(fea)
         else:
-            rank=gap_keys.index(fea)+rf_keys.index(fea)+xgboost_keys.index(fea)+iv_keys.index(fea)
+            rank=gap_keys.index(fea)+rf_keys.index(fea)+etc_keys.index(fea)+iv_keys.index(fea)
             syn_dict[fea]=rank
     syn_dict = dict(sorted(syn_dict.items(), key=lambda x: x[1],reverse=False))
     syn_list=list(syn_dict.keys())
@@ -248,7 +265,7 @@ def syn(gap_dict,rf_dict,xgboost_dict,iv_dict):
 
 #------------------------推荐------------------------------
 @st.cache
-def recommend(gap_dict,hard_dict,rf_dict,xgboost_dict,syn_list,loser_list,option,threshold):
+def recommend(gap_dict,hard_dict,rf_dict,etc_dict,syn_list,loser_list,option,threshold):
 
     def del_loser(ddict,loser_list):
         llist=list(ddict.keys())
@@ -285,11 +302,11 @@ def recommend(gap_dict,hard_dict,rf_dict,xgboost_dict,syn_list,loser_list,option
             recommend_list=rf_list[:threshold]
         except:
             recommend_list=['推荐失败！']
-    elif option == '考虑xgboost评分':
+    elif option == '考虑极度随机树评分':
         try:
-            xgboost_list=del_loser(xgboost_dict,loser_list)
-            threshold=int(threshold*len(xgboost_list)/100)
-            recommend_list=xgboost_list[:threshold]
+            etc_list=del_loser(etc_dict,loser_list)
+            threshold=int(threshold*len(etc_list)/100)
+            recommend_list=etc_list[:threshold]
         except:
             recommend_list=['推荐失败！']
 
